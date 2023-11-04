@@ -4,25 +4,25 @@
   "version": "${version}",
 
   "name": "${name}",
-  "description": "Template for my fabric mods",
+  "description": "branches off from the streams",
   "authors": [
     "Fallen_Breath"
   ],
   "contact": {
-    "homepage": "https://modrinth.com",
-    "sources": "https://github.com/Fallen-Breath/fabric-mod-template"
+    "homepage": "https://github.com/Fallen-Breath/distributary",
+    "sources": "https://github.com/Fallen-Breath/distributary"
   },
 
-  "icon": "assets/template_mod/icon.png",
+  "icon": "assets/distributary/icon.png",
 
-  "environment": "*",
+  "environment": "server",
   "entrypoints": {
     "main": [
-      "me.fallenbreath.template_mod.TemplateMod"
+      "me.fallenbreath.distributary.DistributaryMod"
     ]
   },
   "mixins": [
-    "template_mod.mixins.json"
+    "distributary.mixins.json"
   ],
 
   "depends": {

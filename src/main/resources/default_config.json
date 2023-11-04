@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "silent": true,
+  "routes": [
+    {
+      "type": "minecraft",
+      "match": "proxy.example.com",
+      "target": "example.com:25565"
+    }
+  ]
+}
