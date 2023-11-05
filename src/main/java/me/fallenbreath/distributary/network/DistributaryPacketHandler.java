@@ -23,6 +23,7 @@ package me.fallenbreath.distributary.network;
 import com.google.common.collect.Lists;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import me.fallenbreath.distributary.config.Address;
@@ -137,44 +138,117 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 		return null;
 	}
 
-	@SuppressWarnings("Convert2Diamond")
+	@SuppressWarnings("Convert2Diamond")  // java8 needs it
 	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, Address target)
 	{
 		// TODO: mimic
 		if (Config.shouldLog()) LOGGER.info("Starting forwarding to {} for client {}", target, ctx.channel().remoteAddress());
 
-		Channel inboundChannel = ctx.channel();
+		Channel clientChannel = ctx.channel();
 		Bootstrap bootstrap = new Bootstrap();
-		bootstrap.group(ctx.channel().eventLoop()).
-				channel(inboundChannel.getClass()).
+		bootstrap.group(clientChannel.eventLoop()).
+				channel(clientChannel.getClass()).
 				option(ChannelOption.TCP_NODELAY, true).
 				handler(new ChannelInitializer<Channel>()
 				{
 					@Override
 					protected void initChannel(@NotNull Channel channel)
 					{
-						channel.pipeline().addLast(new ForwardHandler("target", inboundChannel));
+						channel.pipeline().addLast(new ForwardHandler("target", clientChannel));
 					}
 				});
 
 		final long t = System.nanoTime();
 		ChannelFuture f = bootstrap.connect(target.hostname, target.port);
 
+		PacketHolder packetHolder = new PacketHolder(1024);  // Minecraft handshake should never longer than 1KiB
+
 		f.addListener((ChannelFutureListener)future -> {
-			if (Config.shouldLog()) LOGGER.info("Connected to target {}, cost {}ms, ok = {}", target, String.format("%.1f", (System.nanoTime() - t) / 1e6), future.isSuccess());
-			if (future.isSuccess())
+			Channel targetChannel = future.channel();
+			ByteBuf heldClientBuf = packetHolder.export(ctx);
+			if (Config.shouldLog())
 			{
-				ctx.channel().pipeline().addLast(new ForwardHandler("client", future.channel()));
-				ctx.pipeline().fireChannelRead(initBuf);
-				ctx.read();
+				LOGGER.info(
+						"Connected to target {}, cost {}ms, ok = {}, held buf size = {}",
+						target, String.format("%.1f", (System.nanoTime() - t) / 1e6),
+						future.isSuccess(), heldClientBuf != null ? heldClientBuf.readableBytes() : "null"
+				);
+			}
+			if (!clientChannel.isActive())
+			{
+				targetChannel.close();
+				return;
+			}
+
+			if (future.isSuccess() && heldClientBuf != null)
+			{
+				ctx.pipeline().remove(packetHolder);
+				ctx.pipeline().addLast(new ForwardHandler("client", targetChannel));
+				ctx.pipeline().fireChannelRead(heldClientBuf);
 			}
 			else
 			{
-				inboundChannel.close();
+				clientChannel.close();
+				targetChannel.close();
 			}
 		});
 
-		ctx.channel().pipeline().remove(this);
+		ctx.pipeline().remove(this);
+		ctx.pipeline().addLast(packetHolder);
+		ctx.pipeline().fireChannelRead(initBuf);
+	}
+
+	private static class PacketHolder extends ChannelInboundHandlerAdapter
+	{
+		private final int maxSize;
+		private CompositeByteBuf compositeByteBuf;
+
+		public PacketHolder(int maxSize)
+		{
+			this.maxSize = maxSize;
+		}
+
+		@Override
+		public void handlerAdded(ChannelHandlerContext ctx)
+		{
+			this.compositeByteBuf = ctx.alloc().compositeBuffer();
+		}
+
+		@Override
+		public void handlerRemoved(ChannelHandlerContext ctx)
+		{
+			this.compositeByteBuf.release();
+			this.compositeByteBuf = null;
+		}
+
+		@Override
+		public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg)
+		{
+			int sizeToBe = this.compositeByteBuf.readableBytes() + ((ByteBuf)msg).readableBytes();
+			if (sizeToBe > this.maxSize)
+			{
+				if (Config.shouldLog()) LOGGER.error("Too many bytes to hold ({} / {}) bytes, disconnect now", sizeToBe, this.maxSize);
+				ctx.channel().close();
+			}
+			else
+			{
+				if (Config.shouldLog()) LOGGER.info("[holder] read {} bytes, holding", ((ByteBuf)msg).readableBytes());
+				this.compositeByteBuf.addComponent(true, ((ByteBuf)msg).retain());
+			}
+		}
+
+		@Nullable
+		public ByteBuf export(ChannelHandlerContext ctx)
+		{
+			if (this.compositeByteBuf == null)
+			{
+				return null;
+			}
+			ByteBuf output = ctx.alloc().buffer(this.compositeByteBuf.readableBytes());
+			output.writeBytes(this.compositeByteBuf);
+			this.compositeByteBuf.clear();
+			return output;
+		}
 	}
 
 	private static class ForwardHandler extends ChannelInboundHandlerAdapter
@@ -201,6 +275,7 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 		@Override
 		public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg)
 		{
+			if (Config.shouldLog()) LOGGER.info("[{}] read {} bytes, forwarding", this.logName, ((ByteBuf)msg).readableBytes());
 			this.byteCount += ((ByteBuf)msg).readableBytes();
 			this.targetChannel.writeAndFlush(msg).addListener((ChannelFutureListener)future -> {
 				if (future.isSuccess())
