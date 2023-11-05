@@ -4,6 +4,7 @@
   "package": "me.fallenbreath.distributary.mixins",
   "compatibilityLevel": "{{COMPATIBILITY_LEVEL}}",
   "mixins": [
+    "ReloadCommandMixin",
     "ServerNetworkIoChannelInitializerAccessor",
     "ServerNetworkIoMixin"
   ],

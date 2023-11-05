@@ -20,34 +20,21 @@
 
 package me.fallenbreath.distributary.mixins;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelInitializer;
+import me.fallenbreath.distributary.DistributaryMod;
 import me.fallenbreath.distributary.config.Config;
-import me.fallenbreath.distributary.network.DistributaryChannelInitializer;
-import net.minecraft.server.ServerNetworkIo;
+import net.minecraft.server.command.ReloadCommand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(ServerNetworkIo.class)
-public abstract class ServerNetworkIoMixin
+@Mixin(ReloadCommand.class)
+public abstract class ReloadCommandMixin
 {
-	@SuppressWarnings("unchecked")
-	@ModifyArg(
-			method = "bind",
-			at = @At(
-					value = "INVOKE",
-					target = "Lio/netty/bootstrap/ServerBootstrap;childHandler(Lio/netty/channel/ChannelHandler;)Lio/netty/bootstrap/ServerBootstrap;",
-					remap = false
-			)
-	)
-	private ChannelHandler distributaryHack(ChannelHandler childHandler)
+	@Inject(method = "method_13530", at = @At("HEAD"))
+	private static void reloadDistributaryConfig(CallbackInfoReturnable<Integer> cir)
 	{
-		if (Config.get().enabled)
-		{
-			return new DistributaryChannelInitializer((ChannelInitializer<Channel>)childHandler);
-		}
-		return childHandler;
+		if (Config.shouldLog()) DistributaryMod.LOGGER.info("Config reloadings");
+		Config.load();
 	}
 }
