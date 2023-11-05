@@ -20,6 +20,8 @@
 
 package me.fallenbreath.distributary.config;
 
+import java.util.Objects;
+
 @SuppressWarnings("ClassCanBeRecord")
 public final class Address
 {
@@ -49,6 +51,11 @@ public final class Address
 		{
 			return new Address(address, null);
 		}
+	}
+
+	public Address withHostname(String hostname)
+	{
+		return new Address(Objects.requireNonNull(hostname), this.port);
 	}
 
 	public Address withPort(int port)

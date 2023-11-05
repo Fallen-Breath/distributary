@@ -81,7 +81,12 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 			{
 				case ACCEPT:
 					if (Config.shouldLog()) LOGGER.info("sniffer {} accept, address: {}", sniffer.getName(), result.address);
-					Optional<Address> target = Optional.ofNullable(result.address).map(this::routeFor);
+					Optional<Address> target = Optional.ofNullable(result.address).
+							map(address -> {
+								// forge client stuff
+								return address.withHostname(StringUtils.substringBefore(address.hostname, "\0"));
+							}).
+							map(this::routeFor);
 					if (target.isPresent())
 					{
 						this.startForwarding(ctx, byteBuf, target.get());
