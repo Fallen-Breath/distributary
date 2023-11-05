@@ -39,12 +39,25 @@ public final class Address
 		{
 			String hostname = address.substring(0, i);
 			int port = Integer.parseInt(address.substring(i + 1));
+			if (port < 0 || port > 65535)
+			{
+				throw new IllegalArgumentException(String.format("port %d is out of range", port));
+			}
 			return new Address(hostname, port);
 		}
 		else
 		{
 			return new Address(address, null);
 		}
+	}
+
+	public Address withPort(int port)
+	{
+		if (port < 0 || port > 65535)
+		{
+			throw new IllegalArgumentException(String.format("port %d is out of range", port));
+		}
+		return new Address(this.hostname, port);
 	}
 
 	@Override

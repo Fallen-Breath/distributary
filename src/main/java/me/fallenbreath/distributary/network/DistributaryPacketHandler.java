@@ -32,6 +32,8 @@ import me.fallenbreath.distributary.network.sniffer.LegacyHandshakeSniffer;
 import me.fallenbreath.distributary.network.sniffer.ModernHandshakeSniffer;
 import me.fallenbreath.distributary.network.sniffer.Sniffer;
 import me.fallenbreath.distributary.network.sniffer.SniffingResult;
+import me.fallenbreath.distributary.utils.SrvResolver;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -77,12 +79,16 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 			switch (result.state)
 			{
 				case ACCEPT:
-					LOGGER.debug("sniffer {} accept, address: {}", sniffer.getName(), result.address);
+					if (Config.shouldLog()) LOGGER.info("sniffer {} accept, address: {}", sniffer.getName(), result.address);
 					Optional<Address> target = Optional.ofNullable(result.address).map(this::routeFor);
 					if (target.isPresent())
 					{
 						this.startForwarding(ctx, byteBuf, target.get());
 						return;
+					}
+					else
+					{
+						if (Config.shouldLog()) LOGGER.info("no valid route for address {}", result.address);
 					}
 					break loopLabel;
 				case REJECT:
@@ -107,15 +113,24 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 	@Nullable
 	private Address routeFor(Address address)
 	{
+		String hostname = StringUtils.removeEnd(address.hostname, ".");
 		Config config = Config.get();
 		for (Route route : config.routes)
 		{
 			if ("minecraft".equals(route.type))
 			{
 				Address match = Address.of(route.match);
-				if (match.hostname.equals(address.hostname) && (match.port == null || match.port.equals(address.port)))
+				boolean hostnameOk = StringUtils.removeEnd(match.hostname, ".").equals(hostname);
+				boolean portOk = match.port == null || match.port.equals(address.port);
+				if (hostnameOk && portOk)
 				{
-					return Address.of(route.target);
+					Address ret = Address.of(route.target);
+					if (ret.port == null)
+					{
+						Address srv = SrvResolver.resolveSrv(ret.hostname);
+						ret = srv != null ? srv : ret.withPort(25565);
+					}
+					return ret;
 				}
 			}
 		}
@@ -123,10 +138,10 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 	}
 
 	@SuppressWarnings("Convert2Diamond")
-	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, Address remote)
+	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, Address target)
 	{
 		// TODO: mimic
-		if (Config.shouldLog()) LOGGER.info("Starting forwarding to {} for client {}", remote, ctx.channel().remoteAddress());
+		if (Config.shouldLog()) LOGGER.info("Starting forwarding to {} for client {}", target, ctx.channel().remoteAddress());
 
 		Channel inboundChannel = ctx.channel();
 		Bootstrap bootstrap = new Bootstrap();
@@ -138,15 +153,15 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 					@Override
 					protected void initChannel(@NotNull Channel channel)
 					{
-						channel.pipeline().addLast(new ForwardHandler("remote", inboundChannel));
+						channel.pipeline().addLast(new ForwardHandler("target", inboundChannel));
 					}
 				});
 
 		final long t = System.nanoTime();
-		ChannelFuture f = bootstrap.connect(remote.hostname, remote.port);
+		ChannelFuture f = bootstrap.connect(target.hostname, target.port);
 
 		f.addListener((ChannelFutureListener)future -> {
-			if (Config.shouldLog()) LOGGER.info("Connected to remote {}, cost {}ms, ok = {}", remote, String.format("%.1f", (System.nanoTime() - t) / 1e6), future.isSuccess());
+			if (Config.shouldLog()) LOGGER.info("Connected to target {}, cost {}ms, ok = {}", target, String.format("%.1f", (System.nanoTime() - t) / 1e6), future.isSuccess());
 			if (future.isSuccess())
 			{
 				ctx.channel().pipeline().addLast(new ForwardHandler("client", future.channel()));

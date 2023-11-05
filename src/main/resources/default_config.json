@@ -5,7 +5,17 @@
     {
       "type": "minecraft",
       "match": "proxy.example.com",
-      "target": "example.com:25565"
+      "target": "my.mc.server.com:25555"
+    },
+    {
+      "type": "minecraft",
+      "match": "another.address.net",
+      "target": "mc.with.default.port.net"
+    },
+    {
+      "type": "minecraft",
+      "match": "addr.with.port:20001",
+      "target": "mc.srv.record.org"
     }
   ]
 }

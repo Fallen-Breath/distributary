@@ -48,6 +48,7 @@ public final class Config
 		try
 		{
 			doLoad();
+			validate();
 		}
 		catch (Exception e)
 		{
@@ -85,6 +86,19 @@ public final class Config
 
 		String configContent = Files.readString(configFile, StandardCharsets.UTF_8);
 		INSTANCE = Objects.requireNonNull(new Gson().fromJson(configContent, Config.class));
+	}
+
+	private static void validate()
+	{
+		for (Route route : get().routes)
+		{
+			Address.of(Objects.requireNonNull(route.match, "match missing"));
+			Address.of(Objects.requireNonNull(route.target, "target missing"));
+			if (route.mimic != null)
+			{
+				Address.of(route.mimic);
+			}
+		}
 	}
 
 	public static Config get()
