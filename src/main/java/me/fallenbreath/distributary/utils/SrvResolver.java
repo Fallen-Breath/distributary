@@ -20,17 +20,51 @@
 
 package me.fallenbreath.distributary.utils;
 
+import com.google.common.collect.Maps;
+import com.mojang.datafixers.util.Pair;
 import me.fallenbreath.distributary.config.Address;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 
 import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import java.util.Hashtable;
+import java.util.LinkedHashMap;
 
 public class SrvResolver
 {
+	private static final int SRV_CACHE_TTL_MS = 10 * 1000;  // 10s
+	private static final int SRV_CACHE_MAX_SIZE = 100;
+	private static final LinkedHashMap<String, Pair<@Nullable Address, Long>> SRV_CACHE = Maps.newLinkedHashMap();
+
+	@Nullable
 	public static Address resolveSrv(String address)
+	{
+		long now = System.currentTimeMillis();
+		Address result;
+		synchronized (SRV_CACHE)
+		{
+			Pair<Address, Long> pair = SRV_CACHE.get(address);
+			if (pair == null || now - pair.getSecond() >= SRV_CACHE_TTL_MS)
+			{
+				result = resolveSrvNoCache(address);
+				SRV_CACHE.put(address, Pair.of(result, now));
+			}
+			else
+			{
+				result = pair.getFirst();
+			}
+			while (SRV_CACHE.size() > SRV_CACHE_MAX_SIZE)
+			{
+				SRV_CACHE.entrySet().iterator().remove();
+			}
+		}
+		return result;
+	}
+
+	@Nullable
+	private static Address resolveSrvNoCache(String address)
 	{
 		try
 		{
@@ -47,7 +81,7 @@ public class SrvResolver
 
 			return new Address(StringUtils.removeEnd(parts[3], "."), Integer.parseInt(parts[2]));
 		}
-		catch (Throwable var6)
+		catch (Throwable t)
 		{
 			return null;
 		}
