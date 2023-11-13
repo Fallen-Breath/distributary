@@ -60,4 +60,13 @@ public final class SniffingResult
 	{
 		ACCEPT, INCOMPLETE, REJECT;
 	}
+
+	@Override
+	public String toString()
+	{
+		return "SniffingResult{" +
+				"state=" + state +
+				", address=" + address +
+				'}';
+	}
 }

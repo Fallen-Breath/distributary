@@ -26,6 +26,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import me.fallenbreath.distributary.config.Address;
 import me.fallenbreath.distributary.config.Config;
 import me.fallenbreath.distributary.config.Route;
@@ -46,16 +47,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
+public class DistributaryPacketHandler extends ByteToMessageDecoder
 {
 	private static final Logger LOGGER = LogManager.getLogger();
 
-	private final Consumer<ChannelHandlerContext> fallbackToVanilla;
+	private final Consumer<ChannelHandlerContext> restoreToVanilla;
 	private final List<Sniffer> sniffers;
 
-	public DistributaryPacketHandler(Consumer<ChannelHandlerContext> fallbackToVanilla)
+	public DistributaryPacketHandler(Consumer<ChannelHandlerContext> restoreToVanilla)
 	{
-		this.fallbackToVanilla = fallbackToVanilla;
+		this.restoreToVanilla = restoreToVanilla;
 		this.sniffers = Lists.newArrayList(
 				new ModernHandshakeSniffer(),
 				new LegacyHandshakeSniffer()
@@ -63,9 +64,8 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 	}
 
 	@Override
-	public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg)
+	protected void decode(ChannelHandlerContext ctx, ByteBuf byteBuf, List<Object> list)
 	{
-		ByteBuf byteBuf = (ByteBuf)msg;
 		byteBuf.markReaderIndex();
 
 		loopLabel:
@@ -76,7 +76,7 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 			SniffingResult result = sniffer.sniff(byteBuf);
 			byteBuf.resetReaderIndex();
 
-			LOGGER.debug("sniffer {} result: {}", sniffer.getName(), result);
+			if (Config.shouldLog()) LOGGER.info("sniffer {} result: {}", sniffer.getName(), result);
 			switch (result.state)
 			{
 				case ACCEPT:
@@ -104,9 +104,16 @@ public class DistributaryPacketHandler extends ChannelInboundHandlerAdapter
 			}
 		}
 
-		LOGGER.debug("no sniffer accept, switch to vanilla");
-		this.fallbackToVanilla.accept(ctx);
-		ctx.pipeline().fireChannelRead(msg);
+		if (this.sniffers.isEmpty())
+		{
+			if (Config.shouldLog()) LOGGER.info("no available sniffer, switch to vanilla");
+			this.restoreToVanilla.accept(ctx);
+			ctx.pipeline().fireChannelRead(byteBuf);
+		}
+		else
+		{
+			if (Config.shouldLog()) LOGGER.info("all remaining sniffers say packet incomplete, waiting for new messages");
+		}
 	}
 
 	@Override

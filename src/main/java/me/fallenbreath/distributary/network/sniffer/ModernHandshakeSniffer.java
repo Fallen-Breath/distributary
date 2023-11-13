@@ -23,6 +23,7 @@ package me.fallenbreath.distributary.network.sniffer;
 import io.netty.buffer.ByteBuf;
 import me.fallenbreath.distributary.DistributaryMod;
 import me.fallenbreath.distributary.config.Address;
+import me.fallenbreath.distributary.config.Config;
 import net.minecraft.network.PacketByteBuf;
 
 public class ModernHandshakeSniffer implements Sniffer
@@ -38,7 +39,7 @@ public class ModernHandshakeSniffer implements Sniffer
 			int packetId = bodyBuf.readVarInt();
 			if (packetId != 0x00)  // HandshakeC2SPacket
 			{
-				DistributaryMod.LOGGER.warn("bad packet id {}", packetId);
+				if (Config.shouldLog()) DistributaryMod.LOGGER.warn("bad packet id {}", packetId);
 				return SniffingResult.reject();
 			}
 
