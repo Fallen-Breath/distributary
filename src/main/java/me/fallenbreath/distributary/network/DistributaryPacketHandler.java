@@ -68,6 +68,8 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 	{
 		byteBuf.markReaderIndex();
 
+		boolean routeFailed = false;
+
 		loopLabel:
 		for (Iterator<Sniffer> iterator = this.sniffers.iterator(); iterator.hasNext(); )
 		{
@@ -95,8 +97,10 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 					else
 					{
 						if (Config.shouldLog()) LOGGER.info("no valid route for address {}", result.address);
+						iterator.remove();
+						routeFailed = true;
+						break loopLabel;
 					}
-					break loopLabel;
 				case REJECT:
 					LOGGER.debug("sniffer {} rejects", sniffer.getName());
 					iterator.remove();
@@ -104,9 +108,9 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 			}
 		}
 
-		if (this.sniffers.isEmpty())
+		if (this.sniffers.isEmpty() || routeFailed)
 		{
-			if (Config.shouldLog()) LOGGER.info("no available sniffer, switch to vanilla");
+			if (Config.shouldLog()) LOGGER.info("{}, switch to vanilla", this.sniffers.isEmpty() ? "no available sniffer" : "route failed");
 			this.restoreToVanilla.accept(ctx);
 			ctx.pipeline().fireChannelRead(byteBuf);
 		}
