@@ -112,7 +112,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 		{
 			if (Config.shouldLog()) LOGGER.info("{}, switch to vanilla", this.sniffers.isEmpty() ? "no available sniffer" : "route failed");
 			this.restoreToVanilla.accept(ctx);
-			ctx.pipeline().fireChannelRead(byteBuf);
+			ctx.pipeline().fireChannelRead(byteBuf.retain());
 		}
 		else
 		{
