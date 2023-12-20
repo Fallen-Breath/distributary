@@ -36,15 +36,21 @@ public final class Address
 
 	public static Address of(String address)
 	{
-		int i = address.indexOf(':');
+		int i = address.lastIndexOf(':');
 		if (i != -1)
 		{
 			String hostname = address.substring(0, i);
+			if (hostname.length() >= 2 && hostname.charAt(0) == '[' && hostname.charAt(hostname.length() - 1) == ']')
+			{
+				hostname = hostname.substring(1, hostname.length() - 1);  // IPv6
+			}
+
 			int port = Integer.parseInt(address.substring(i + 1));
 			if (port < 0 || port > 65535)
 			{
 				throw new IllegalArgumentException(String.format("port %d is out of range", port));
 			}
+
 			return new Address(hostname, port);
 		}
 		else
