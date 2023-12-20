@@ -1,6 +1,7 @@
 {
   "enabled": false,
   "silent": true,
+  "haproxy_protocol": false,
   "routes": [
     {
       "type": "minecraft",
@@ -11,6 +12,13 @@
       "type": "minecraft",
       "match": "another.address.net",
       "target": "mc.with.default.port.net"
+    },
+    {
+      "type": "minecraft",
+      "match": "foo.bar",
+      "target": "server.that.accepts.haproxy.protocol",
+      "haproxy_protocol": true,
+      "haproxy_protocol_version": 2
     },
     {
       "type": "minecraft",

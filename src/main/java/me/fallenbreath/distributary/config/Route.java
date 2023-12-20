@@ -30,12 +30,16 @@ public final class Route
 	public String target;
 	@Nullable public String mimic;
 
+	public boolean haproxy_protocol = false;
+	public int haproxy_protocol_version = 2;
+
 	@Nullable
 	public String mimic()
 	{
 		return mimic;
 	}
 
+	@SuppressWarnings("SwitchStatementWithTooFewBranches")
 	@Override
 	public String toString()
 	{
@@ -53,6 +57,10 @@ public final class Route
 			default:
 				sb.append("<unknown>");
 				break;
+		}
+		if (this.haproxy_protocol)
+		{
+			sb.append("[ha=").append(this.haproxy_protocol_version).append("]");
 		}
 		return sb.toString();
 	}

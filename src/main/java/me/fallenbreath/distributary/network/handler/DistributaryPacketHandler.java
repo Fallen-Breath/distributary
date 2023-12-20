@@ -25,6 +25,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.haproxy.*;
 import me.fallenbreath.distributary.config.Address;
 import me.fallenbreath.distributary.config.Config;
 import me.fallenbreath.distributary.config.Route;
@@ -39,6 +40,9 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -50,6 +54,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 
 	private final Consumer<ChannelHandlerContext> restoreToVanilla;
 	private final List<Sniffer> sniffers;
+	public InetSocketAddress realClientAddress = null;
 
 	public DistributaryPacketHandler(Consumer<ChannelHandlerContext> restoreToVanilla)
 	{
@@ -152,12 +157,13 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 	}
 
 	@SuppressWarnings("Convert2Diamond")  // java8 needs it
-	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, RouteResult target)
+	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, RouteResult routeResult)
 	{
 		// TODO: mimic
-		if (Config.shouldLog()) LOGGER.info("Starting forwarding to {} for client {}", target, ctx.channel().remoteAddress());
-
+		Address targetAddr = routeResult.address;
 		Channel clientChannel = ctx.channel();
+		if (Config.shouldLog()) LOGGER.info("Starting forwarding to {} for client {}", targetAddr, clientChannel.remoteAddress());
+
 		Bootstrap bootstrap = new Bootstrap();
 		bootstrap.group(clientChannel.eventLoop()).
 				channel(clientChannel.getClass()).
@@ -172,7 +178,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 				});
 
 		final long t = System.nanoTime();
-		ChannelFuture f = bootstrap.connect(target.address.hostname, target.address.port);
+		ChannelFuture f = bootstrap.connect(targetAddr.hostname, targetAddr.port);
 
 		PacketHolder packetHolder = new PacketHolder(1024);  // Minecraft handshake should never longer than 1KiB
 
@@ -183,7 +189,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 			{
 				LOGGER.info(
 						"Connected to target {}, cost {}ms, ok = {}, held buf size = {}",
-						target, String.format("%.1f", (System.nanoTime() - t) / 1e6),
+						targetAddr, String.format("%.1f", (System.nanoTime() - t) / 1e6),
 						future.isSuccess(), heldClientBuf != null ? heldClientBuf.readableBytes() : "null"
 				);
 			}
@@ -193,21 +199,72 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 				return;
 			}
 
-			if (future.isSuccess() && heldClientBuf != null)
+			//noinspection LoopStatementThatDoesntLoop
+			while (future.isSuccess() && heldClientBuf != null)
 			{
+				if (routeResult.route.haproxy_protocol)
+				{
+					if (Config.shouldLog()) LOGGER.info("Sending HAProxy proxy protocol v{}", routeResult.route.haproxy_protocol_version);
+					HAProxyMessage haProxyMessage = this.makeProxyProtocolHeader(clientChannel, targetChannel, routeResult);
+					if (haProxyMessage == null)
+					{
+						if (Config.shouldLog()) LOGGER.warn("Failed to create a HAProxy message, disconnecting");
+						break;
+					}
+					targetChannel.pipeline().addLast(HAProxyMessageEncoder.INSTANCE);
+					targetChannel.writeAndFlush(haProxyMessage);
+					targetChannel.pipeline().remove(HAProxyMessageEncoder.INSTANCE);
+				}
+
 				ctx.pipeline().remove(packetHolder);
 				ctx.pipeline().addLast(new ForwardHandler("client", targetChannel));
 				ctx.pipeline().fireChannelRead(heldClientBuf);
+
+				return;
 			}
-			else
-			{
-				clientChannel.close();
-				targetChannel.close();
-			}
+
+			clientChannel.close();
+			targetChannel.close();
 		});
 
 		ctx.pipeline().remove(this);
 		ctx.pipeline().addLast(packetHolder);
 		ctx.pipeline().fireChannelRead(initBuf);
+	}
+
+	@Nullable
+	private HAProxyMessage makeProxyProtocolHeader(Channel clientChannel, Channel targetChannel, RouteResult routeResult)
+	{
+		InetSocketAddress clientAddr = (InetSocketAddress)clientChannel.remoteAddress();
+		InetSocketAddress targetAddr = (InetSocketAddress)targetChannel.remoteAddress();
+		if (this.realClientAddress != null)
+		{
+			clientAddr = this.realClientAddress;
+		}
+
+		HAProxyProxiedProtocol protocol;
+		if (clientAddr.getAddress() instanceof Inet4Address && targetAddr.getAddress() instanceof Inet4Address)
+		{
+			protocol = HAProxyProxiedProtocol.TCP4;
+		}
+		else if (clientAddr.getAddress() instanceof Inet6Address && targetAddr.getAddress() instanceof Inet6Address)
+		{
+			protocol = HAProxyProxiedProtocol.TCP6;
+		}
+		else
+		{
+			if (Config.shouldLog()) LOGGER.warn("Mixed use of IPv4 and IPv6, cannot create a HAProxy protocol header. clientAddr: {}, targetAddr: {}", clientAddr, targetAddr);
+			return null;
+		}
+
+		return new HAProxyMessage(
+				routeResult.route.haproxy_protocol_version == 1 ? HAProxyProtocolVersion.V1 : HAProxyProtocolVersion.V2,
+				HAProxyCommand.PROXY,
+				protocol,
+				clientAddr.getAddress().getHostAddress(),
+				targetAddr.getAddress().getHostAddress(),
+				clientAddr.getPort(),
+				targetAddr.getPort()
+		);
 	}
 }

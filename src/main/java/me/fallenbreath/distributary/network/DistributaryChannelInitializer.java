@@ -21,11 +21,18 @@
 package me.fallenbreath.distributary.network;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.handler.codec.haproxy.HAProxyMessage;
+import io.netty.handler.codec.haproxy.HAProxyMessageDecoder;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import me.fallenbreath.distributary.config.Config;
 import me.fallenbreath.distributary.mixins.ServerNetworkIoChannelInitializerAccessor;
 import me.fallenbreath.distributary.network.handler.DistributaryPacketHandler;
 import org.jetbrains.annotations.NotNull;
+
+import java.net.InetSocketAddress;
 
 public class DistributaryChannelInitializer extends ChannelInitializer<Channel>
 {
@@ -39,15 +46,49 @@ public class DistributaryChannelInitializer extends ChannelInitializer<Channel>
 	@Override
 	protected void initChannel(@NotNull Channel channel)
 	{
-		channel.pipeline().
-				addLast("distributary_timeout", new ReadTimeoutHandler(30)).
-				addLast("distributary_handler", new DistributaryPacketHandler(ctx -> {
-					channel.pipeline().remove("distributary_timeout");
-					channel.pipeline().remove("distributary_handler");
-					this.vanillaInit(channel);
-					// vanilla handlers need this to init something
-					ctx.pipeline().fireChannelActive();
-				}));
+		DistributaryPacketHandler distributaryPacketHandler = new DistributaryPacketHandler(ctx -> {
+			for (String name : new String[]{
+					"distributary_timeout",
+					"distributary_handler",
+					"distributary_haproxy_decoder",
+					"distributary_haproxy_handler",
+			})
+			{
+				if (channel.pipeline().get(name) != null)
+				{
+					channel.pipeline().remove(name);
+				}
+			}
+
+			this.vanillaInit(channel);
+			// vanilla handlers need this to init something
+			ctx.pipeline().fireChannelActive();
+		});
+
+		channel.pipeline().addLast("distributary_timeout", new ReadTimeoutHandler(30));
+		channel.pipeline().addLast("distributary_handler", distributaryPacketHandler);
+
+		if (Config.get().haproxy_protocol)
+		{
+			channel.pipeline().addAfter("distributary_timeout", "distributary_haproxy_decoder", new HAProxyMessageDecoder());
+			channel.pipeline().addAfter("distributary_haproxy_decoder", "distributary_haproxy_handler", new ChannelInboundHandlerAdapter()
+			{
+				@Override
+				public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception
+				{
+					if (msg instanceof HAProxyMessage)
+					{
+						String readAddr = ((HAProxyMessage)msg).sourceAddress();
+						int realPort = ((HAProxyMessage)msg).sourcePort();
+						distributaryPacketHandler.realClientAddress = new InetSocketAddress(readAddr, realPort);
+					}
+					else
+					{
+						super.channelRead(ctx, msg);
+					}
+				}
+			});
+		}
 	}
 
 	private void vanillaInit(Channel channel)

@@ -41,6 +41,7 @@ public final class Config
 	private static Config INSTANCE = new Config();
 	public boolean enabled = false;
 	public boolean silent = false;
+	public boolean haproxy_protocol = false;
 	public final List<Route> routes = Lists.newArrayList();
 
 	public static void load()
@@ -97,6 +98,11 @@ public final class Config
 			if (route.mimic != null)
 			{
 				Address.of(route.mimic);
+			}
+			int hpv = route.haproxy_protocol_version;
+			if (hpv != 1 && hpv != 2)
+			{
+				throw new IllegalArgumentException(String.format("bad haproxy_protocol_version %d, should be 1 or 2", hpv));
 			}
 		}
 	}
