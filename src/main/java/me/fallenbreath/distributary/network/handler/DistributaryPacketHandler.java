@@ -18,13 +18,11 @@
  * along with Distributary.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package me.fallenbreath.distributary.network;
+package me.fallenbreath.distributary.network.handler;
 
 import com.google.common.collect.Lists;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import me.fallenbreath.distributary.config.Address;
@@ -41,7 +39,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.net.SocketException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -83,7 +80,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 			{
 				case ACCEPT:
 					if (Config.shouldLog()) LOGGER.info("sniffer {} accept, address: {}", sniffer.getName(), result.address);
-					Optional<Address> target = Optional.ofNullable(result.address).
+					Optional<RouteResult> target = Optional.ofNullable(result.address).
 							map(address -> {
 								// forge client stuff
 								return address.withHostname(StringUtils.substringBefore(address.hostname, "\0"));
@@ -128,7 +125,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 	}
 
 	@Nullable
-	private Address routeFor(Address address)
+	private RouteResult routeFor(Address address)
 	{
 		String hostname = StringUtils.removeEnd(address.hostname, ".");
 		Config config = Config.get();
@@ -141,13 +138,13 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 				boolean portOk = match.port == null || match.port.equals(address.port);
 				if (hostnameOk && portOk)
 				{
-					Address ret = Address.of(route.target);
-					if (ret.port == null)
+					Address finalAddress = Address.of(route.target);
+					if (finalAddress.port == null)
 					{
-						Address srv = SrvResolver.resolveSrv(ret.hostname);
-						ret = srv != null ? srv : ret.withPort(25565);
+						Address srv = SrvResolver.resolveSrv(finalAddress.hostname);
+						finalAddress = srv != null ? srv : finalAddress.withPort(25565);
 					}
-					return ret;
+					return new RouteResult(route, finalAddress);
 				}
 			}
 		}
@@ -155,7 +152,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 	}
 
 	@SuppressWarnings("Convert2Diamond")  // java8 needs it
-	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, Address target)
+	private void startForwarding(ChannelHandlerContext ctx, ByteBuf initBuf, RouteResult target)
 	{
 		// TODO: mimic
 		if (Config.shouldLog()) LOGGER.info("Starting forwarding to {} for client {}", target, ctx.channel().remoteAddress());
@@ -175,7 +172,7 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 				});
 
 		final long t = System.nanoTime();
-		ChannelFuture f = bootstrap.connect(target.hostname, target.port);
+		ChannelFuture f = bootstrap.connect(target.address.hostname, target.address.port);
 
 		PacketHolder packetHolder = new PacketHolder(1024);  // Minecraft handshake should never longer than 1KiB
 
@@ -212,114 +209,5 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 		ctx.pipeline().remove(this);
 		ctx.pipeline().addLast(packetHolder);
 		ctx.pipeline().fireChannelRead(initBuf);
-	}
-
-	private static class PacketHolder extends ChannelInboundHandlerAdapter
-	{
-		private final int maxSize;
-		private CompositeByteBuf compositeByteBuf;
-
-		public PacketHolder(int maxSize)
-		{
-			this.maxSize = maxSize;
-		}
-
-		@Override
-		public void handlerAdded(ChannelHandlerContext ctx)
-		{
-			this.compositeByteBuf = ctx.alloc().compositeBuffer();
-		}
-
-		@Override
-		public void handlerRemoved(ChannelHandlerContext ctx)
-		{
-			this.compositeByteBuf.release();
-			this.compositeByteBuf = null;
-		}
-
-		@Override
-		public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg)
-		{
-			int sizeToBe = this.compositeByteBuf.readableBytes() + ((ByteBuf)msg).readableBytes();
-			if (sizeToBe > this.maxSize)
-			{
-				if (Config.shouldLog()) LOGGER.error("Too many bytes to hold ({} / {}) bytes, disconnect now", sizeToBe, this.maxSize);
-				ctx.channel().close();
-			}
-			else
-			{
-				if (Config.shouldLog()) LOGGER.info("[holder] read {} bytes, holding", ((ByteBuf)msg).readableBytes());
-				this.compositeByteBuf.addComponent(true, ((ByteBuf)msg).retain());
-			}
-		}
-
-		@Nullable
-		public ByteBuf export(ChannelHandlerContext ctx)
-		{
-			if (this.compositeByteBuf == null)
-			{
-				return null;
-			}
-			ByteBuf output = ctx.alloc().buffer(this.compositeByteBuf.readableBytes());
-			output.writeBytes(this.compositeByteBuf);
-			this.compositeByteBuf.clear();
-			return output;
-		}
-	}
-
-	private static class ForwardHandler extends ChannelInboundHandlerAdapter
-	{
-		private final String logName;
-		private final Channel targetChannel;
-		private long byteCount;
-
-		public ForwardHandler(String logName, Channel targetChannel)
-		{
-			this.logName = logName;
-			this.targetChannel = targetChannel;
-			this.byteCount = 0;
-		}
-
-		private void flushAndClose()
-		{
-			if (this.targetChannel.isActive())
-			{
-				this.targetChannel.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
-			}
-		}
-
-		@Override
-		public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg)
-		{
-			if (Config.shouldLog()) LOGGER.info("[{}] read {} bytes, forwarding", this.logName, ((ByteBuf)msg).readableBytes());
-			this.byteCount += ((ByteBuf)msg).readableBytes();
-			this.targetChannel.writeAndFlush(msg).addListener((ChannelFutureListener)future -> {
-				if (future.isSuccess())
-				{
-					ctx.read();
-				}
-				else
-				{
-					this.flushAndClose();
-				}
-			});
-		}
-
-		@Override
-		public void channelInactive(@NotNull ChannelHandlerContext ctx)
-		{
-			this.flushAndClose();
-			if (Config.shouldLog()) LOGGER.info("[{}] forwarder disconnected, forwarded {} bytes", this.logName, this.byteCount);
-		}
-
-		@Override
-		public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
-		{
-			if (!(cause instanceof SocketException && "Connection reset".equals(cause.getMessage())))
-			{
-				if (Config.shouldLog()) LOGGER.error("[{}] forwarder error: {}", this.logName, cause);
-			}
-			this.flushAndClose();
-		}
 	}
 }

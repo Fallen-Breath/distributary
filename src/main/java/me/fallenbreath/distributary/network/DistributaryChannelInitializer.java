@@ -24,6 +24,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import me.fallenbreath.distributary.mixins.ServerNetworkIoChannelInitializerAccessor;
+import me.fallenbreath.distributary.network.handler.DistributaryPacketHandler;
 import org.jetbrains.annotations.NotNull;
 
 public class DistributaryChannelInitializer extends ChannelInitializer<Channel>
