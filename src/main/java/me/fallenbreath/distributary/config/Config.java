@@ -81,11 +81,11 @@ public final class Config
 			try (InputStream inputStream = Config.class.getClassLoader().getResourceAsStream("default_config.json"))
 			{
 				String defaultConfig = IOUtils.toString(Objects.requireNonNull(inputStream), StandardCharsets.UTF_8);
-				Files.writeString(configFile, defaultConfig, StandardCharsets.UTF_8);
+				Files.write(configFile, defaultConfig.getBytes(StandardCharsets.UTF_8));
 			}
 		}
 
-		String configContent = Files.readString(configFile, StandardCharsets.UTF_8);
+		String configContent = new String(Files.readAllBytes(configFile), StandardCharsets.UTF_8);
 		INSTANCE = Objects.requireNonNull(new Gson().fromJson(configContent, Config.class));
 	}
 
