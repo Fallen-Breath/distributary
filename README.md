@@ -4,4 +4,4 @@
 [![Issues](https://img.shields.io/github/issues/Fallen-Breath/distributary.svg)](https://github.com/Fallen-Breath/distributary/issues)
 [![Modrinth](https://img.shields.io/modrinth/dt/UQomx7Ba?label=Modrinth%20Downloads)](https://modrinth.com/mod/distributary)
 
-A Minecraft reversed proxy
+A Minecraft reversed proxy built upon Minecraft
