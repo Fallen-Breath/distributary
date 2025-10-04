@@ -138,10 +138,19 @@ public class DistributaryPacketHandler extends ByteToMessageDecoder
 		{
 			if ("minecraft".equals(route.type))
 			{
-				Address match = Address.of(route.match);
-				boolean hostnameOk = StringUtils.removeEnd(match.hostname, ".").equals(hostname);
-				boolean portOk = match.port == null || match.port.equals(address.port);
-				if (hostnameOk && portOk)
+				boolean found = false;
+				for (String matchStr : route.allMatches())
+				{
+					Address match = Address.of(matchStr);
+					boolean hostnameOk = StringUtils.removeEnd(match.hostname, ".").equals(hostname);
+					boolean portOk = match.port == null || match.port.equals(address.port);
+					if (hostnameOk && portOk)
+					{
+						found = true;
+						break;
+					}
+				}
+				if (found)
 				{
 					Address finalAddress = Address.of(route.target);
 					if (finalAddress.port == null)

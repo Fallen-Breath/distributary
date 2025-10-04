@@ -20,23 +20,36 @@
 
 package me.fallenbreath.distributary.config;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
 import org.apache.logging.log4j.util.Strings;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 public final class Route
 {
 	public String type;
 	public String match;
+	public List<String> matches;
 	public String target;
 	@Nullable public String mimic;
 
 	public boolean haproxy_protocol = false;
 	public int haproxy_protocol_version = 2;
 
-	@Nullable
-	public String mimic()
+	public List<String> allMatches()
 	{
-		return mimic;
+		List<String> allMatches = Lists.newArrayList();
+		if (!Strings.isEmpty(this.match))
+		{
+			allMatches.add(this.match);
+		}
+		if (this.matches != null)
+		{
+			allMatches.addAll(this.matches);
+		}
+		return allMatches;
 	}
 
 	@SuppressWarnings("SwitchStatementWithTooFewBranches")
@@ -48,10 +61,11 @@ public final class Route
 		switch (this.type)
 		{
 			case "minecraft":
-				sb.append(this.match).append(" -> ").append(this.target);
-				if (!Strings.isEmpty(this.mimic()))
+
+				sb.append(Joiner.on('|').join(this.allMatches())).append(" -> ").append(this.target);
+				if (!Strings.isEmpty(this.mimic))
 				{
-					sb.append(" [mimic=").append(this.mimic()).append("]");
+					sb.append(" [mimic=").append(this.mimic).append("]");
 				}
 				break;
 			default:

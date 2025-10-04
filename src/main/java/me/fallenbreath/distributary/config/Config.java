@@ -93,7 +93,16 @@ public final class Config
 	{
 		for (Route route : get().routes)
 		{
-			Address.of(Objects.requireNonNull(route.match, "match missing"));
+			List<String> allMatches = route.allMatches();
+			if (allMatches.isEmpty())
+			{
+				throw new RuntimeException("match and matches missing");
+			}
+			for (String match : allMatches)
+			{
+				Address.of(Objects.requireNonNull(match, "match missing"));
+			}
+
 			Address.of(Objects.requireNonNull(route.target, "target missing"));
 			if (route.mimic != null)
 			{
