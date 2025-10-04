@@ -44,7 +44,9 @@ public abstract class ServerNetworkIoMixin
 	)
 	private ChannelHandler distributaryHack(ChannelHandler childHandler)
 	{
-		if (Config.get().enabled)
+		boolean enabled = Config.get().enabled;
+		Config.wasEnabledOnNetworkInit = enabled;
+		if (enabled)
 		{
 			return new DistributaryChannelInitializer((ChannelInitializer<Channel>)childHandler);
 		}

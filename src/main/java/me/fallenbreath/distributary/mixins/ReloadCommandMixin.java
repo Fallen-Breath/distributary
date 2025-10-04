@@ -34,7 +34,7 @@ public abstract class ReloadCommandMixin
 	@Inject(method = "method_13530", at = @At("HEAD"))
 	private static void reloadDistributaryConfig(CallbackInfoReturnable<Integer> cir)
 	{
-		if (Config.shouldLog()) DistributaryMod.LOGGER.info("Config reloadings");
+		if (Config.shouldLog()) DistributaryMod.LOGGER.info("Config reloading");
 		Config.load();
 	}
 }

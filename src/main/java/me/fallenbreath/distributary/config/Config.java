@@ -39,6 +39,8 @@ public final class Config
 {
 	@NotNull
 	private static Config INSTANCE = new Config();
+	public static boolean wasEnabledOnNetworkInit = false;
+
 	public boolean enabled = false;
 	public boolean silent = false;
 	public boolean haproxy_protocol = false;
@@ -62,6 +64,10 @@ public final class Config
 			for (Route route : get().routes)
 			{
 				DistributaryMod.LOGGER.info("- {}", route);
+			}
+			if (get().enabled && !wasEnabledOnNetworkInit)
+			{
+				DistributaryMod.LOGGER.warn("You need to restart the server to enable distributary since you enable it too late");
 			}
 		}
 	}
