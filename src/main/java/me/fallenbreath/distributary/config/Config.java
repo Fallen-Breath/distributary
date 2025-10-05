@@ -67,7 +67,7 @@ public final class Config
 			}
 			if (get().enabled && !wasEnabledOnNetworkInit)
 			{
-				DistributaryMod.LOGGER.warn("You need to restart the server to enable distributary since you enable it too late");
+				DistributaryMod.LOGGER.warn("You need to restart the server to enable distributary, since you enable distributary too late");
 			}
 		}
 	}
