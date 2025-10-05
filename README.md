@@ -15,7 +15,7 @@ For those client connections that do not match any of the configured addresses,
 they will be directly connected to the current server as if this mod does not exist
 
 ```mermaid
-graph TD
+graph
     svr[Minecraft server with distributary]
     i1[Minecraft Client 1]
     i2[Minecraft Client 2]
