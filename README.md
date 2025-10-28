@@ -2,8 +2,6 @@
 
 [![License](https://img.shields.io/github/license/Fallen-Breath/distributary.svg)](http://www.gnu.org/licenses/lgpl-3.0.html)
 [![Issues](https://img.shields.io/github/issues/Fallen-Breath/distributary.svg)](https://github.com/Fallen-Breath/distributary/issues)
-[![MC Versions](http://cf.way2muchnoise.eu/versions/For%20MC_distributary_all.svg)](https://legacy.curseforge.com/minecraft/mc-mods/distributary)
-[![CurseForge](http://cf.way2muchnoise.eu/full_distributary_downloads.svg)](https://legacy.curseforge.com/minecraft/mc-mods/distributary)
 [![Modrinth](https://img.shields.io/modrinth/dt/UQomx7Ba?label=Modrinth%20Downloads)](https://modrinth.com/mod/distributary)
 
 A Minecraft reversed proxy that distribute connections to backend servers based on the host info in the handshake packet
