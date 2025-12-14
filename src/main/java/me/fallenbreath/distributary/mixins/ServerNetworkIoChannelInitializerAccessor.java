@@ -25,9 +25,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * The anonymous class in {@link net.minecraft.server.ServerNetworkIo#bind}
+ * The anonymous class in {@link net.minecraft.server.network.ServerConnectionListener#startTcpServerListener}
  */
-@Mixin(targets = "net.minecraft.server.ServerNetworkIo$1")
+@Mixin(targets = "net.minecraft.server.network.ServerConnectionListener$1")
 public interface ServerNetworkIoChannelInitializerAccessor
 {
 	@Invoker

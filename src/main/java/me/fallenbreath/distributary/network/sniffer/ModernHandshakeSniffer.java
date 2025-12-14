@@ -24,7 +24,7 @@ import io.netty.buffer.ByteBuf;
 import me.fallenbreath.distributary.DistributaryMod;
 import me.fallenbreath.distributary.config.Address;
 import me.fallenbreath.distributary.config.Config;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 
 public class ModernHandshakeSniffer implements Sniffer
 {
@@ -33,9 +33,9 @@ public class ModernHandshakeSniffer implements Sniffer
 	{
 		try
 		{
-			PacketByteBuf buf = new PacketByteBuf(byteBuf);
+			FriendlyByteBuf buf = new FriendlyByteBuf(byteBuf);
 			int packetSize = buf.readVarInt();
-			PacketByteBuf bodyBuf = new PacketByteBuf(buf.readBytes(packetSize));
+			FriendlyByteBuf bodyBuf = new FriendlyByteBuf(buf.readBytes(packetSize));
 			int packetId = bodyBuf.readVarInt();
 			if (packetId != 0x00)  // HandshakeC2SPacket
 			{
@@ -43,9 +43,9 @@ public class ModernHandshakeSniffer implements Sniffer
 				return SniffingResult.reject();
 			}
 
-			// ref: net.minecraft.network.packet.c2s.handshake.HandshakeC2SPacket
+			// ref: net.minecraft.network.protocol.handshake.ClientIntentionPacket
 			int protocol = bodyBuf.readVarInt();
-			String hostname = bodyBuf.readString(255);
+			String hostname = bodyBuf.readUtf(255);
 			int port = bodyBuf.readUnsignedShort();
 			int nextState = bodyBuf.readVarInt();
 

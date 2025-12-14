@@ -25,17 +25,17 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import me.fallenbreath.distributary.config.Config;
 import me.fallenbreath.distributary.network.DistributaryChannelInitializer;
-import net.minecraft.server.ServerNetworkIo;
+import net.minecraft.server.network.ServerConnectionListener;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
-@Mixin(ServerNetworkIo.class)
+@Mixin(ServerConnectionListener.class)
 public abstract class ServerNetworkIoMixin
 {
 	@SuppressWarnings("unchecked")
 	@ModifyArg(
-			method = "bind",
+			method = "startTcpServerListener",
 			at = @At(
 					value = "INVOKE",
 					target = "Lio/netty/bootstrap/ServerBootstrap;childHandler(Lio/netty/channel/ChannelHandler;)Lio/netty/bootstrap/ServerBootstrap;",

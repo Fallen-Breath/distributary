@@ -22,7 +22,7 @@ package me.fallenbreath.distributary.mixins;
 
 import me.fallenbreath.distributary.DistributaryMod;
 import me.fallenbreath.distributary.config.Config;
-import net.minecraft.server.command.ReloadCommand;
+import net.minecraft.server.commands.ReloadCommand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
