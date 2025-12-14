@@ -88,8 +88,8 @@ shadowJar {
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 tasks.withType(ShadowJar).configureEach {
-	enableRelocation true
-	relocationPrefix 'me.fallenbreath.distributary.libs'
+	enableRelocation = true
+	relocationPrefix = 'me.fallenbreath.distributary.libs'
 }
 
 remapJar {
